@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 trained_models/*.pth
 trained_models/*.h5
 microclassify.log
