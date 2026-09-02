@@ -1,0 +1,2 @@
+[console_scripts]
+microclassify = micro_classifier.__main__:main

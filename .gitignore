@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+trained_models/*.pth
+trained_models/*.h5
+microclassify.log
+# dataset/ is versioned via Git LFS (see .gitattributes)
+test_micro.mp4
+.DS_Store
