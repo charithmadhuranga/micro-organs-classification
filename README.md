@@ -33,11 +33,27 @@ microorganism classification) into a production-grade, extensible application.
 Uses the **Microorganism Image Classification** dataset from Kaggle:
 https://www.kaggle.com/datasets/mdwaquarazam/microorganism-image-classification
 
+The real dataset (8 classes, 858 images, ~106 MB) is **included in this
+repository** under `dataset/` and versioned with **Git LFS** so the repo stays
+lightweight (only pointer files are tracked; the full images live in LFS).
+
+To clone with the dataset, LFS is required and pulls automatically:
+
+```bash
+git clone <repo-url>
+# images are fetched on checkout via LFS filter
+```
+
+If you need to refresh LFS after a pull:
+
+```bash
+git lfs pull
+```
+
 8 classes:
 `Amoeba, Euglena, Hydra, Paramecium, Rod Bacteria, Spherical Bacteria, Spiral Bacteria, Yeast`
 
-Download it and place the `Micro_Organism` folder contents such that each class
-is a sub-directory under `dataset/`:
+The dataset is laid out with one sub-directory per class under `dataset/`:
 
 ```
 dataset/
@@ -50,6 +66,10 @@ dataset/
 ├── Spiral_bacteria/
 └── Yeast/
 ```
+
+> The Kaggle source may name the class folders `Rod_bacteria` / `Spherical_bacteria` /
+> `Spiral_bacteria`; they are kept as-is so the classifier matches the notebook
+> convention.
 
 ## Installation
 
