@@ -1,8 +1,7 @@
-"""Microorganism classifier model based on EfficientNet-B4 with transfer learning."""
+"""Microorganism classifier model based on EfficientNet-B5 backbone via timm."""
 
 import torch
 import torch.nn as nn
-import torchvision.models as models
 from typing import Optional, Dict, Tuple
 
 from ..utils.device import get_device
@@ -10,44 +9,48 @@ from ..utils.device import get_device
 
 class MicroClassifier(nn.Module):
     """
-    Professional microorganism classifier using EfficientNet-B4 backbone.
+    EfficientNet-B5 classifier with improved classification head.
 
     Architecture:
-        - EfficientNet-B4 pretrained on ImageNet (frozen or fine-tunable)
-        - Global Average Pooling
+        - EfficientNet-B5 pretrained on ImageNet-1K (frozen or fine-tunable)
+        - Global Average Pooling + Global Max Pooling (concatenated)
         - Batch Normalization
-        - Custom classification head with dropout regularization
+        - Multi-layer classification head with dropout
     """
 
     def __init__(
         self,
-        num_classes: int = 8,
+        num_classes: int = 16,
         pretrained: bool = True,
-        dropout_rate: float = 0.3,
+        dropout_rate: float = 0.4,
         freeze_backbone: bool = True,
     ):
         super().__init__()
         self.num_classes = num_classes
+        self.backbone_name = "tf_efficientnet_b5"
 
-        weights = models.EfficientNet_B4_Weights.IMAGENET1K_V1 if pretrained else None
-        self.backbone = models.efficientnet_b4(weights=weights)
+        import timm
+        self.backbone = timm.create_model(
+            self.backbone_name, pretrained=pretrained, num_classes=0
+        )
+        num_features = self.backbone.num_features
 
-        num_features = self.backbone.classifier[1].in_features
-        self.backbone.classifier = nn.Identity()
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.maxpool = nn.AdaptiveMaxPool2d(1)
 
         self._freeze_backbone(freeze_backbone)
 
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(num_features, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
+            nn.Linear(num_features * 2, 1024),
+            nn.BatchNorm1d(1024),
+            nn.SiLU(inplace=True),
             nn.Dropout(dropout_rate),
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout_rate * 0.5),
-            nn.Linear(256, num_classes),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.SiLU(inplace=True),
+            nn.Dropout(dropout_rate * 0.7),
+            nn.Linear(512, num_classes),
         )
 
         self._initialize_weights()
@@ -68,13 +71,13 @@ class MicroClassifier(nn.Module):
 
     def unfreeze_backbone(self, num_layers: Optional[int] = None):
         """Unfreeze backbone layers for fine-tuning."""
-        layers = list(self.backbone.features)
         if num_layers is None:
             for param in self.backbone.parameters():
                 param.requires_grad = True
         else:
-            for layer in layers[-num_layers:]:
-                for param in layer.parameters():
+            features = list(self.backbone.children())
+            for child in features[-num_layers:]:
+                for param in child.parameters():
                     param.requires_grad = True
 
     def freeze_backbone(self):
@@ -83,7 +86,10 @@ class MicroClassifier(nn.Module):
             param.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        features = self.backbone(x)
+        features = self.backbone.forward_features(x)
+        avg_feat = self.pool(features)
+        max_feat = self.maxpool(features)
+        features = torch.cat([avg_feat, max_feat], dim=1)
         return self.classifier(features)
 
     def get_num_params(self, trainable_only: bool = True) -> int:
@@ -95,7 +101,7 @@ class MicroClassifier(nn.Module):
         total_params = self.get_num_params(trainable_only=False)
         trainable_params = self.get_num_params(trainable_only=True)
         return {
-            "architecture": "EfficientNet-B4",
+            "architecture": "EfficientNet-B5",
             "total_params": f"{total_params:,}",
             "trainable_params": f"{trainable_params:,}",
             "frozen_params": f"{total_params - trainable_params:,}",
@@ -104,9 +110,9 @@ class MicroClassifier(nn.Module):
 
 
 def create_model(
-    num_classes: int = 8,
+    num_classes: int = 16,
     pretrained: bool = True,
-    dropout_rate: float = 0.3,
+    dropout_rate: float = 0.4,
     freeze_backbone: bool = True,
     device: Optional[torch.device] = None,
 ) -> MicroClassifier:
@@ -137,7 +143,7 @@ def load_checkpoint(
 
     idx_to_class = checkpoint.get("idx_to_class", {})
     if num_classes is None:
-        num_classes = len(idx_to_class) if idx_to_class else 8
+        num_classes = len(idx_to_class) if idx_to_class else 16
 
     model = MicroClassifier(
         num_classes=num_classes,

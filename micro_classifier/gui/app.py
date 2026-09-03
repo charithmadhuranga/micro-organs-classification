@@ -21,7 +21,7 @@ from ..utils.stream import VideoStream
 from ..utils.trainer import TrainingEngine
 from .layout import HeaderBar, ResponsiveWorkspace, StatusBar
 from .panels import (
-    ClassificationPanel, SourcePanel, TrainingPanel, VideoDisplay,
+    ClassificationPanel, ModelInfoPanel, SourcePanel, TrainingPanel, VideoDisplay,
 )
 from .theme import THEME
 from .widgets import StyledButton, StyledLabel
@@ -72,6 +72,7 @@ class MicroClassifyApp(App):
         self.source_panel = SourcePanel(self, size_hint_y=None, height=dp(200))
         self.training_panel = TrainingPanel(self)
         self.classification_panel = ClassificationPanel()
+        self.model_info_panel = ModelInfoPanel()
         self.video_display = VideoDisplay()
 
         self.workspace = ResponsiveWorkspace(
@@ -79,6 +80,7 @@ class MicroClassifyApp(App):
             self.video_display,
             self.training_panel,
             self.classification_panel,
+            self.model_info_panel,
             size_hint_y=1.0,
         )
         root.add_widget(self.workspace)
@@ -191,6 +193,10 @@ class MicroClassifyApp(App):
             self.model_config.num_classes = len(loaded_classes)
             self.classification_panel.set_classes(loaded_classes)
 
+            # Update model info panel
+            model_info = self.model.get_model_info()
+            self.model_info_panel.set_model_info(model_info, loaded_classes)
+
             self.status_bar.set_mode(
                 f"Inference | {len(loaded_classes)} classes | {get_device_name()}", THEME["accent"]
             )
@@ -243,7 +249,13 @@ class MicroClassifyApp(App):
             dropout_rate=self.model_config.dropout_rate,
             pretrained=True,
         )
-        self.training_engine = TrainingEngine(model, self.training_config)
+        self.training_engine = TrainingEngine(
+            model, self.training_config,
+            label_smoothing=0.1,
+            use_mixup=True,
+            use_cutmix=True,
+            progressive_unfreeze=True,
+        )
         class_to_idx = stats["class_to_idx"]
 
         self.training_engine.train(

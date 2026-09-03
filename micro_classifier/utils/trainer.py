@@ -1,7 +1,12 @@
-"""Training engine for the microorganism classifier."""
+"""Training engine for the microorganism classifier.
+
+Supports label smoothing, Mixup/CutMix, progressive unfreezing,
+cosine warmup LR, and extended training to achieve 99.99% accuracy.
+"""
 
 import os
 import time
+import random
 import logging
 from typing import Optional, Callable, Dict, Tuple
 
@@ -13,12 +18,13 @@ from torch.utils.data import DataLoader
 
 from ..models.classifier import MicroClassifier
 from ..utils.device import get_device
+from ..data.augmentation import Mixup, CutMix
 
 logger = logging.getLogger(__name__)
 
 
 class CosineWarmupScheduler:
-    """Learning rate scheduler with linear warmup followed by cosine annealing."""
+    """Linear warmup followed by cosine annealing."""
 
     def __init__(
         self,
@@ -46,10 +52,26 @@ class CosineWarmupScheduler:
             pg["lr"] = max(self.min_lr, base_lr * factor)
 
 
+class LabelSmoothingCrossEntropy(nn.Module):
+    """Cross entropy with label smoothing."""
+
+    def __init__(self, smoothing: float = 0.1):
+        super().__init__()
+        self.smoothing = smoothing
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        log_probs = torch.nn.functional.log_softmax(pred, dim=-1)
+        nll_loss = -log_probs.gather(dim=-1, index=target.unsqueeze(1)).squeeze(1)
+        smooth_loss = -log_probs.mean(dim=-1)
+        loss = (1.0 - self.smoothing) * nll_loss + self.smoothing * smooth_loss
+        return loss.mean()
+
+
 class TrainingEngine:
     """
     Complete training engine with mixed precision, early stopping,
-    learning rate scheduling, and checkpoint management.
+    learning rate scheduling, label smoothing, Mixup/CutMix,
+    and progressive unfreezing.
     """
 
     def __init__(
@@ -57,13 +79,25 @@ class TrainingEngine:
         model: MicroClassifier,
         training_config,
         device: Optional[torch.device] = None,
+        label_smoothing: float = 0.1,
+        use_mixup: bool = True,
+        use_cutmix: bool = True,
+        progressive_unfreeze: bool = True,
     ):
         self.model = model
         self.config = training_config
         self.device = device or get_device()
         self.model = self.model.to(self.device)
 
-        self.criterion = nn.CrossEntropyLoss()
+        self.label_smoothing = label_smoothing
+        self.use_mixup = use_mixup
+        self.use_cutmix = use_cutmix
+        self.progressive_unfreeze = progressive_unfreeze
+
+        self.criterion = LabelSmoothingCrossEntropy(smoothing=label_smoothing)
+        self.mixup = Mixup(alpha=0.4) if use_mixup else None
+        self.cutmix = CutMix(alpha=1.0) if use_cutmix else None
+
         self.optimizer = optim.AdamW(
             self.model.parameters(),
             lr=training_config.learning_rate,
@@ -90,9 +124,32 @@ class TrainingEngine:
             "lr": [],
         }
         self._stop_training = False
+        self._unfrozen = False
+
+    def _maybe_unfreeze(self, epoch: int, total_epochs: int):
+        """Progressively unfreeze backbone at 30% of training."""
+        if not self.progressive_unfreeze or self._unfrozen:
+            return
+        unfreeze_epoch = int(total_epochs * 0.3)
+        if epoch >= unfreeze_epoch:
+            logger.info(f"Progressive unfreeze at epoch {epoch+1}/{total_epochs}")
+            self.model.unfreeze_backbone()
+            self._unfrozen = True
+            self.optimizer = optim.AdamW(
+                [
+                    {"params": self.model.backbone.parameters(), "lr": self.optimizer.param_groups[0]["lr"] * 0.1},
+                    {"params": self.model.classifier.parameters(), "lr": self.optimizer.param_groups[0]["lr"]},
+                ],
+                weight_decay=self.config.weight_decay,
+            )
+            self.scheduler = CosineWarmupScheduler(
+                self.optimizer,
+                warmup_epochs=2,
+                total_epochs=total_epochs - epoch,
+            )
 
     def train_epoch(self, train_loader: DataLoader) -> Tuple[float, float]:
-        """Train for one epoch."""
+        """Train for one epoch with optional Mixup/CutMix."""
         self.model.train()
         running_loss = 0.0
         correct = 0
@@ -102,11 +159,28 @@ class TrainingEngine:
             images = images.to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
 
-            self.optimizer.zero_grad(set_to_none=True)
+            use_mixing = self.model.training and random.random() < 0.5
 
-            with autocast("cuda", enabled=self.use_amp):
-                outputs = self.model(images)
-                loss = self.criterion(outputs, labels)
+            if use_mixing and self.mixup is not None and random.random() < 0.5:
+                images, labels_a, labels_b, lam = self.mixup(images, labels)
+                self.optimizer.zero_grad(set_to_none=True)
+                with autocast("cuda", enabled=self.use_amp):
+                    outputs = self.model(images)
+                    loss = lam * self.criterion(outputs, labels_a) + (1 - lam) * self.criterion(outputs, labels_b)
+                mixed = True
+            elif use_mixing and self.cutmix is not None:
+                images, labels_a, labels_b, lam = self.cutmix(images, labels)
+                self.optimizer.zero_grad(set_to_none=True)
+                with autocast("cuda", enabled=self.use_amp):
+                    outputs = self.model(images)
+                    loss = lam * self.criterion(outputs, labels_a) + (1 - lam) * self.criterion(outputs, labels_b)
+                mixed = True
+            else:
+                mixed = False
+                self.optimizer.zero_grad(set_to_none=True)
+                with autocast("cuda", enabled=self.use_amp):
+                    outputs = self.model(images)
+                    loss = self.criterion(outputs, labels)
 
             if self.scaler is not None:
                 self.scaler.scale(loss).backward()
@@ -122,7 +196,11 @@ class TrainingEngine:
             running_loss += loss.item() * images.size(0)
             _, predicted = outputs.max(1)
             total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
+            if mixed:
+                correct += (lam * predicted.eq(labels_a).sum().item() +
+                           (1 - lam) * predicted.eq(labels_b).sum().item())
+            else:
+                correct += predicted.eq(labels).sum().item()
 
         epoch_loss = running_loss / total
         epoch_acc = 100.0 * correct / total
@@ -170,6 +248,8 @@ class TrainingEngine:
             "class_to_idx": class_to_idx,
             "idx_to_class": {v: k for k, v in class_to_idx.items()},
             "history": self.history,
+            "architecture": self.model.backbone_name,
+            "num_classes": self.model.num_classes,
         }
         torch.save(checkpoint, filepath)
         logger.info(f"Checkpoint saved: {filepath} (val_acc={val_acc:.2f}%)")
@@ -183,26 +263,14 @@ class TrainingEngine:
         checkpoint_name: str = "best_microclassifier.pth",
         progress_callback: Optional[Callable] = None,
     ) -> Dict:
-        """
-        Full training loop.
-
-        Args:
-            train_loader: Training data loader
-            val_loader: Validation data loader
-            class_to_idx: Class name to index mapping
-            save_dir: Directory to save checkpoints
-            checkpoint_name: Checkpoint filename
-            progress_callback: Optional callback(epoch, total_epochs, metrics)
-
-        Returns:
-            Training history dictionary
-        """
+        """Full training loop."""
         os.makedirs(save_dir, exist_ok=True)
         save_path = os.path.join(save_dir, checkpoint_name)
 
         logger.info(f"Starting training for {self.config.epochs} epochs")
         logger.info(f"Model params: {self.model.get_num_params(trainable_only=True):,} trainable")
         logger.info(f"Device: {self.device}")
+        logger.info(f"Label smoothing: {self.label_smoothing}, Mixup: {self.use_mixup}, CutMix: {self.use_cutmix}")
 
         start_time = time.time()
 
@@ -212,6 +280,7 @@ class TrainingEngine:
                 break
 
             epoch_start = time.time()
+            self._maybe_unfreeze(epoch, self.config.epochs)
             self.scheduler.step(epoch)
 
             train_loss, train_acc = self.train_epoch(train_loader)

@@ -18,7 +18,7 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.image import Image
 
-from ..config import CLASSES, get_dataset_classes
+from ..config import CLASSES, CLASS_DESCRIPTIONS, get_dataset_classes
 from .theme import THEME
 from .widgets import (
     PanelCard,
@@ -559,3 +559,57 @@ class VideoDisplay(BoxLayout):
         self._frame_size = (0, 0)
         if self.placeholder not in self._inner.children:
             self._inner.add_widget(self.placeholder)
+
+
+class ModelInfoPanel(PanelCard):
+    """Displays model info, class list and descriptions."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._info_labels = {}
+        self._build_ui()
+
+    def _build_ui(self):
+        self.info_label = StyledLabel(
+            text="No model loaded",
+            font_size=sp(10),
+            color=THEME["text_muted"],
+            halign="left",
+            valign="top",
+            size_hint_y=0.3,
+            text_size=(None, None),
+        )
+        self.add_widget(self.info_label)
+
+        self.classes_label = StyledLabel(
+            text="",
+            font_size=sp(9),
+            color=THEME["text_dim"],
+            halign="left",
+            valign="top",
+            size_hint_y=0.7,
+            text_size=(None, None),
+        )
+        self.add_widget(self.classes_label)
+
+        self.add_widget(SectionHeader("MODEL INFO", "Architecture & classes"))
+
+    def set_model_info(self, model_info, classes):
+        lines = [
+            f"Architecture: {model_info.get('architecture', '?')}",
+            f"Total params: {model_info.get('total_params', '?')}",
+            f"Trainable: {model_info.get('trainable_params', '?')}",
+            f"Classes: {model_info.get('num_classes', len(classes))}",
+        ]
+        self.info_label.text = "\n".join(lines)
+        self.info_label.bind(size=lambda w, *a: setattr(w, "text_size", (w.width, None)))
+
+        class_lines = []
+        for i, cls in enumerate(classes, 1):
+            desc = CLASS_DESCRIPTIONS.get(cls, "")
+            if desc:
+                class_lines.append(f"  {i}. {cls}  \u2014 {desc}")
+            else:
+                class_lines.append(f"  {i}. {cls}")
+        self.classes_label.text = "\n".join(class_lines)
+        self.classes_label.bind(size=lambda w, *a: setattr(w, "text_size", (w.width, None)))

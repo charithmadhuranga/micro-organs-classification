@@ -53,33 +53,18 @@ class RobustImageFolder(ImageFolder):
             return super().__getitem__(0)
 
 
-def get_training_transforms(cfg) -> transforms.Compose:
+def get_training_transforms(cfg, use_advanced: bool = True) -> transforms.Compose:
     """Get training data augmentation pipeline."""
-    return transforms.Compose([
-        transforms.Resize((cfg.input_size + 32, cfg.input_size + 32)),
-        transforms.RandomCrop(cfg.input_size),
-        transforms.RandomHorizontalFlip(p=cfg.horizontal_flip),
-        transforms.RandomVerticalFlip(p=cfg.vertical_flip),
-        transforms.RandomRotation(cfg.rotation),
-        transforms.ColorJitter(
-            brightness=cfg.color_jitter_brightness,
-            contrast=cfg.color_jitter_contrast,
-            saturation=cfg.color_jitter_saturation,
-            hue=cfg.color_jitter_hue,
-        ),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=cfg.normalize_mean, std=cfg.normalize_std),
-        transforms.RandomErasing(p=cfg.random_erasing_prob),
-    ])
+    from .augmentation import get_training_transforms as _get_adv, get_validation_transforms as _get_val
+    if use_advanced:
+        return _get_adv(cfg, use_advanced=True)
+    return _get_val(cfg)
 
 
 def get_validation_transforms(cfg) -> transforms.Compose:
     """Get validation/test inference transforms (deterministic)."""
-    return transforms.Compose([
-        transforms.Resize((cfg.input_size, cfg.input_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=cfg.normalize_mean, std=cfg.normalize_std),
-    ])
+    from .augmentation import get_validation_transforms as _get_val
+    return _get_val(cfg)
 
 
 class MicroorganismDataset:

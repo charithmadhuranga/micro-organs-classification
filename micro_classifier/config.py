@@ -8,23 +8,23 @@ from typing import List, Optional
 @dataclass
 class ModelConfig:
     """Model architecture configuration."""
-    name: str = "efficientnet_b4"
+    name: str = "efficientnet_b5"
     num_classes: int = 16
-    input_size: int = 380
+    input_size: int = 456
     pretrained: bool = True
-    dropout_rate: float = 0.3
+    dropout_rate: float = 0.4
     freeze_backbone: bool = True
 
 
 @dataclass
 class TrainingConfig:
     """Training hyperparameters."""
-    batch_size: int = 32
-    epochs: int = 50
-    learning_rate: float = 1e-3
+    batch_size: int = 16
+    epochs: int = 100
+    learning_rate: float = 3e-4
     weight_decay: float = 1e-4
     warmup_epochs: int = 5
-    early_stopping_patience: int = 7
+    early_stopping_patience: int = 15
     mixed_precision: bool = True
     num_workers: int = 4
     validation_split: float = 0.15
@@ -35,7 +35,7 @@ class TrainingConfig:
 @dataclass
 class AugmentationConfig:
     """Data augmentation configuration."""
-    input_size: int = 380
+    input_size: int = 456
     rotation: int = 20
     horizontal_flip: float = 0.5
     vertical_flip: float = 0.2

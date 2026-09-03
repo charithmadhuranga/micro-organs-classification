@@ -100,19 +100,22 @@ class ResponsiveWorkspace(BoxLayout):
     BREAKPOINT = dp(1100)
 
     def __init__(self, source_panel, video_display, training_panel,
-                 classification_panel, **kwargs):
+                 classification_panel, model_info_panel=None, **kwargs):
         super().__init__(spacing=dp(12), **kwargs)
         self.source_panel = source_panel
         self.video_display = video_display
         self.training_panel = training_panel
         self.classification_panel = classification_panel
+        self.model_info_panel = model_info_panel
 
-        # Left column groups source (top) and training (bottom). Created once.
+        # Left column groups source (top), training (middle), model info (bottom).
         self.left = BoxLayout(orientation="vertical", spacing=dp(10), size_hint_x=0.26)
         self.left.add_widget(self.source_panel)
         self.left.add_widget(self.training_panel)
+        if self.model_info_panel:
+            self.left.add_widget(self.model_info_panel)
 
-        # The workspace ALWAYS owns these three children in this order.
+        # The workspace ALWAYS owns these children in this order.
         self.add_widget(self.left)
         self.add_widget(self.video_display)
         self.add_widget(self.classification_panel)
@@ -133,6 +136,9 @@ class ResponsiveWorkspace(BoxLayout):
             self.source_panel.height = dp(200)
             self.training_panel.size_hint_x = 1.0
             self.training_panel.size_hint_y = 1.0
+            if self.model_info_panel:
+                self.model_info_panel.size_hint_x = 1.0
+                self.model_info_panel.size_hint_y = 0.4
 
             self.video_display.size_hint_x = 0.48
             self.video_display.size_hint_y = 1.0
@@ -151,6 +157,10 @@ class ResponsiveWorkspace(BoxLayout):
             self.training_panel.size_hint_x = 1.0
             self.training_panel.size_hint_y = None
             self.training_panel.height = dp(340)
+            if self.model_info_panel:
+                self.model_info_panel.size_hint_x = 1.0
+                self.model_info_panel.size_hint_y = None
+                self.model_info_panel.height = dp(200)
 
             self.video_display.size_hint_x = 1.0
             self.video_display.size_hint_y = None
