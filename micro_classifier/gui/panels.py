@@ -18,7 +18,7 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.image import Image
 
-from ..config import CLASSES
+from ..config import CLASSES, get_dataset_classes
 from .theme import THEME
 from .widgets import (
     PanelCard,
@@ -349,16 +349,24 @@ class TrainingProgress(BoxLayout):
 class ClassificationPanel(PanelCard):
     """Live prediction results: detection header + per-class probability bars."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, classes=None, **kwargs):
         super().__init__(**kwargs)
+        self._classes = classes or CLASSES
         self._prob_bars = {}
+        self._build_ui()
+
+    def set_classes(self, classes):
+        """Rebuild probability bars for a new set of classes."""
+        self._classes = classes
+        self.clear_widgets()
+        self._prob_bars.clear()
         self._build_ui()
 
     def _build_ui(self):
         # Add widgets bottom-to-top: bars (fill), result card, then header on top.
         # Probability bars fill the remaining vertical space at the bottom.
         bars_box = BoxLayout(orientation="vertical", spacing=dp(4), size_hint_y=1.0)
-        for cls_name in CLASSES:
+        for cls_name in self._classes:
             row = BoxLayout(orientation="horizontal", spacing=dp(6), size_hint_y=1.0)
             name = StyledLabel(
                 text=cls_name,
@@ -420,7 +428,7 @@ class ClassificationPanel(PanelCard):
         self.add_widget(result_card)
 
         # Header added LAST so it sits on top.
-        self.add_widget(SectionHeader("LIVE DETECTION", "Per-class confidence"))
+        self.add_widget(SectionHeader("LIVE DETECTION", f"Per-class confidence ({len(self._classes)} classes)"))
 
     def update_results(self, predicted_class, confidence, all_probs, inference_time):
         self.detection_label.text = predicted_class

@@ -185,11 +185,17 @@ class MicroClassifyApp(App):
             )
             self.inference_engine.warmup(self.model_config.input_size)
             self.model = self.inference_engine.model
+
+            # Rebuild classification panel with classes from the loaded model
+            loaded_classes = self.inference_engine.class_names
+            self.model_config.num_classes = len(loaded_classes)
+            self.classification_panel.set_classes(loaded_classes)
+
             self.status_bar.set_mode(
-                f"Inference | {get_device_name()}", THEME["accent"]
+                f"Inference | {len(loaded_classes)} classes | {get_device_name()}", THEME["accent"]
             )
             self.header.set_status("MODEL READY", THEME["success"])
-            logger.info(f"Model loaded from {checkpoint_path}")
+            logger.info(f"Model loaded from {checkpoint_path} ({len(loaded_classes)} classes)")
         except Exception as e:
             self.show_error(f"Failed to load model: {e}")
             logger.exception("Model load error")

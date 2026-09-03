@@ -9,7 +9,7 @@ from typing import List, Optional
 class ModelConfig:
     """Model architecture configuration."""
     name: str = "efficientnet_b4"
-    num_classes: int = 8
+    num_classes: int = 16
     input_size: int = 380
     pretrained: bool = True
     dropout_rate: float = 0.3
@@ -84,25 +84,54 @@ class GUIConfig:
 
 CLASSES: List[str] = [
     "Amoeba",
+    "Chlamydomonas",
+    "Diatom",
     "Euglena",
     "Hydra",
+    "Nematode",
     "Paramecium",
-    "Rod Bacteria",
-    "Spherical Bacteria",
-    "Spiral Bacteria",
+    "Penicillium",
+    "Rod_bacteria",
+    "Rotifer",
+    "Spherical_bacteria",
+    "Spiral_bacteria",
+    "Spirogyra",
+    "Stentor",
+    "Volvox",
     "Yeast",
 ]
 
 CLASS_DESCRIPTIONS = {
     "Amoeba": "Single-celled protozoan that moves using pseudopods",
+    "Chlamydomonas": "Single-cell green algae with two flagella",
+    "Diatom": "Photosynthetic algae with silica cell walls",
     "Euglena": "Flagellated protozoan with both plant and animal traits",
     "Hydra": "Freshwater polyp of the phylum Cnidaria",
+    "Nematode": "Unsegmented roundworms (microscopic species)",
     "Paramecium": "Slipper-shaped ciliated protozoan",
-    "Rod Bacteria": "Bacillus-shaped bacteria (e.g., E. coli)",
-    "Spherical Bacteria": "Coccus-shaped bacteria (e.g., Staphylococcus)",
-    "Spiral Bacteria": "Spirillum-shaped bacteria (e.g., Spirochaete)",
+    "Penicillium": "Saprophytic fungus (mold) with brush-like conidiophores",
+    "Rod_bacteria": "Rod-shaped bacteria (Bacillus, E. coli, etc.)",
+    "Rotifer": "Microscopic multicellular animals with ciliated corona",
+    "Spherical_bacteria": "Spherical bacteria (Staphylococcus, Streptococcus)",
+    "Spiral_bacteria": "Spiral-shaped bacteria (Spirillum, Spirochete)",
+    "Spirogyra": "Filamentous green algae with spiral chloroplasts",
+    "Stentor": "Large trumpet-shaped ciliated protist",
+    "Volvox": "Colonial green algae forming spherical colonies",
     "Yeast": "Single-celled eukaryotic fungus",
 }
+
+
+def get_dataset_classes(dataset_path: str) -> List[str]:
+    """Auto-discover class folders from the dataset directory."""
+    if not os.path.isdir(dataset_path):
+        return CLASSES
+    classes = sorted([
+        d for d in os.listdir(dataset_path)
+        if os.path.isdir(os.path.join(dataset_path, d))
+        and not d.startswith(".")
+    ])
+    return classes if classes else CLASSES
+
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_MODEL_PATH = os.path.join(PROJECT_ROOT, "trained_models", "best_microclassifier.pth")

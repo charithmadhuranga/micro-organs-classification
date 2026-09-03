@@ -126,7 +126,7 @@ def create_model(
 
 def load_checkpoint(
     checkpoint_path: str,
-    num_classes: int = 8,
+    num_classes: Optional[int] = None,
     device: Optional[torch.device] = None,
 ) -> Tuple[MicroClassifier, Dict]:
     """Load a model from a checkpoint file."""
@@ -134,6 +134,10 @@ def load_checkpoint(
         device = get_device()
 
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+
+    idx_to_class = checkpoint.get("idx_to_class", {})
+    if num_classes is None:
+        num_classes = len(idx_to_class) if idx_to_class else 8
 
     model = MicroClassifier(
         num_classes=num_classes,
@@ -148,6 +152,6 @@ def load_checkpoint(
         "epoch": checkpoint.get("epoch", 0),
         "best_acc": checkpoint.get("best_acc", 0.0),
         "class_to_idx": checkpoint.get("class_to_idx", {}),
-        "idx_to_class": checkpoint.get("idx_to_class", {}),
+        "idx_to_class": idx_to_class,
     }
     return model, metadata
