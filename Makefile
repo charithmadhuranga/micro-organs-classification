@@ -136,7 +136,9 @@ check:
 		micro_classifier/data/dataset.py \
 		micro_classifier/utils/device.py micro_classifier/utils/trainer.py \
 		micro_classifier/utils/inference.py micro_classifier/utils/stream.py \
-		micro_classifier/gui/app.py
+		micro_classifier/gui/__init__.py micro_classifier/gui/theme.py \
+		micro_classifier/gui/widgets.py micro_classifier/gui/panels.py \
+		micro_classifier/gui/layout.py micro_classifier/gui/app.py
 	@printf '\n\033[1;32mAll source files compile OK\033[0m\n'
 
 clean:

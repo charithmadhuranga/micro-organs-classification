@@ -132,66 +132,98 @@ class InferenceEngine:
         annotated = frame.copy()
         h, w = annotated.shape[:2]
 
+        # --------------------------------------------------------------- #
+        # Top overlay panel. Its height is computed from the number of
+        # classes so every class label + bar always fits with comfortable
+        # spacing and never overlaps.
+        # --------------------------------------------------------------- #
+        title_h = 62                     # room for title + detected lines
+        n_classes = len(all_probs) if (show_bars and all_probs) else 0
+
+        if n_classes > 0:
+            bar_height = 16
+            label_gap = 17               # vertical gap between bar and its label
+            bar_gap = 7                  # gap between one bar and next label
+            slot = bar_height + label_gap + bar_gap
+            bars_start = title_h + 4
+            panel_h = int(bars_start + n_classes * slot + 14)
+        else:
+            panel_h = title_h + 18
+
         overlay = annotated.copy()
-        panel_h = 280 if show_bars else 80
         cv2.rectangle(overlay, (0, 0), (w, panel_h), (20, 20, 30), -1)
         cv2.addWeighted(overlay, 0.85, annotated, 0.15, 0, annotated)
 
         cv2.putText(
             annotated, "MICROORGANISM CLASSIFIER",
-            (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 180, 216), 2,
+            (15, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 180, 216), 2,
         )
         cv2.putText(
             annotated,
             f"Detected: {predicted_class}  ({confidence*100:.1f}%)",
-            (15, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (46, 204, 113), 2,
+            (15, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (46, 204, 113), 2,
         )
 
         if inference_time_ms > 0:
             cv2.putText(
                 annotated,
                 f"Inference: {inference_time_ms:.1f}ms",
-                (w - 220, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1,
+                (w - 240, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1,
             )
 
-        if show_bars and len(all_probs) > 0:
+        if n_classes > 0:
             sorted_probs = sorted(all_probs.items(), key=lambda x: x[1], reverse=True)
+            max_prob = max(prob for _, prob in sorted_probs)
             bar_x_start = 15
-            bar_y_start = 90
-            bar_width = int(w * 0.4)
-            bar_height = 20
-            bar_spacing = 28
+            label_width = 150
+            track_start = 175
+            track_width = int(w * 0.30)
+            pct_x = track_start + track_width + 10
 
             for idx, (cls_name, prob) in enumerate(sorted_probs):
-                y = bar_y_start + idx * bar_spacing
-                bar_fill = int(bar_width * prob)
+                slot_top = bars_start + idx * slot
+                label_baseline = slot_top + label_gap
+                bar_top = slot_top + label_gap
+                bar_fill_w = max(1, int(track_width * (prob / max_prob if max_prob else 0)))
 
-                cv2.putText(
-                    annotated, f"{cls_name[:18]}",
-                    (bar_x_start, y - 3),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1,
-                )
-
+                # Class name on a dark background so it is always legible.
+                label_w_meas = cv2.getTextSize(
+                    cls_name[:18], cv2.FONT_HERSHEY_SIMPLEX, 0.42, 1
+                )[0][0]
                 cv2.rectangle(
                     annotated,
-                    (bar_x_start, y + 2),
-                    (bar_x_start + bar_width, y + 2 + bar_height),
+                    (bar_x_start, label_baseline - 13),
+                    (bar_x_start + max(label_w_meas + 8, label_width),
+                     label_baseline + 3),
+                    (32, 32, 40), -1,
+                )
+                cv2.putText(
+                    annotated, cls_name[:18],
+                    (bar_x_start + 5, label_baseline),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (220, 220, 220), 1,
+                )
+
+                # Bar track + fill.
+                cv2.rectangle(
+                    annotated,
+                    (track_start, bar_top),
+                    (track_start + track_width, bar_top + bar_height),
                     (50, 50, 50), -1,
                 )
-
-                color = (0, 180, 216) if prob == max(all_probs.values()) else (80, 80, 100)
+                fill_color = (0, 180, 216) if prob == max_prob else (80, 80, 100)
                 cv2.rectangle(
                     annotated,
-                    (bar_x_start, y + 2),
-                    (bar_x_start + bar_fill, y + 2 + bar_height),
-                    color, -1,
+                    (track_start, bar_top),
+                    (track_start + bar_fill_w, bar_top + bar_height),
+                    fill_color, -1,
                 )
 
+                # Percentage right of the bar.
                 cv2.putText(
                     annotated,
                     f"{prob*100:.1f}%",
-                    (bar_x_start + bar_width + 10, y + 17),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (180, 180, 180), 1,
+                    (pct_x, bar_top + bar_height),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (200, 200, 200), 1,
                 )
 
         return annotated
