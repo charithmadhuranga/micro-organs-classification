@@ -488,6 +488,13 @@ class VideoDisplay(BoxLayout):
             color=THEME["text_muted"],
             font_size=sp(13),
             halign="center",
+            valign="center",
+            size_hint_x=0.6,
+            size_hint_y=0.2,
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+        )
+        self.placeholder.bind(
+            size=lambda w, *a: setattr(w, "text_size", (w.width, None))
         )
         self._inner.add_widget(self.placeholder)
 
