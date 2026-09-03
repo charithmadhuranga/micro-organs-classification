@@ -1,6 +1,6 @@
 """Reusable styled widgets and card helpers for the MicroClassify GUI."""
 
-from kivy.graphics import Color, RoundedRectangle, Line
+from kivy.graphics import Color, Line, Rectangle, RoundedRectangle
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -104,7 +104,11 @@ class StyledButton(Button):
 
 
 class StyledTextInput(TextInput):
-    """Text input with rounded, theme-friendly background."""
+    """Text input with rounded, theme-friendly background.
+
+    Uses property-bound canvas instructions (never clears canvas.before) so
+    that Kivy's internal TextInput focus/keyboard machinery is preserved.
+    """
 
     def __init__(self, hint_text="", text="", font_size=sp(12), **kwargs):
         super().__init__(
@@ -120,19 +124,22 @@ class StyledTextInput(TextInput):
             multiline=False,
             **kwargs,
         )
-        self.bind(pos=self._redraw, size=self._redraw)
-        self._redraw()
-
-    def _redraw(self, *args):
-        self.canvas.before.clear()
         with self.canvas.before:
             Color(*THEME["bg_input"])
-            RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(6)])
+            self._bg_rect = Rectangle()
+            self._bg_rect.pos = self.pos
+            self._bg_rect.size = self.size
             Color(*THEME["accent_dim"])
-            Line(
-                rounded_rectangle=(self.x, self.y, self.width, self.height, dp(6)),
-                width=dp(1.2),
-            )
+            self._bg_border = Line(width=dp(1.2))
+        self.bind(pos=self._update_bg, size=self._update_bg)
+        self._update_bg()
+
+    def _update_bg(self, *args):
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+        self._bg_border.rounded_rectangle = (
+            self.x, self.y, self.width, self.height, dp(6)
+        )
 
 
 class SectionHeader(BoxLayout):

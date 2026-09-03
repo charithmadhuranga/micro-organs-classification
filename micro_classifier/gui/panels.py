@@ -178,9 +178,9 @@ class TrainingPanel(PanelCard):
         self.epochs_input = StyledTextInput(text="50", font_size=sp(11), size_hint_x=0.33)
         self.lr_input = StyledTextInput(text="0.001", font_size=sp(11), size_hint_x=0.33)
         self.batch_input = StyledTextInput(text="32", font_size=sp(11), size_hint_x=0.34)
-        params_row.add_widget(self._field("Epochs", self.epochs_input))
-        params_row.add_widget(self._field("LR", self.lr_input))
-        params_row.add_widget(self._field("Batch", self.batch_input))
+        params_row.add_widget(self._field("Epochs", self.epochs_input, size_hint_x=0.33))
+        params_row.add_widget(self._field("LR", self.lr_input, size_hint_x=0.33))
+        params_row.add_widget(self._field("Batch", self.batch_input, size_hint_x=0.34))
         self.add_widget(params_row)
 
         mp_row = BoxLayout(spacing=dp(6), size_hint_y=None, height=dp(36))
@@ -208,38 +208,51 @@ class TrainingPanel(PanelCard):
         mp_row.add_widget(load_btn)
         self.add_widget(mp_row)
 
-        ds_row = self._path_row("Dataset path", app_controller.default_dataset_path)
-        self.dataset_path_input = ds_row.input
+        ds_row = BoxLayout(spacing=dp(6), size_hint_y=None, height=dp(36))
+        ds_row.add_widget(StyledLabel(
+            text="Dataset path",
+            font_size=sp(10),
+            color=THEME["text_dim"],
+            size_hint_x=0.34,
+            halign="left",
+        ))
+        self.dataset_path_input = StyledTextInput(
+            text=app_controller.default_dataset_path, font_size=sp(11), size_hint_x=0.46
+        )
+        ds_row.add_widget(self.dataset_path_input)
+        ds_browse_btn = StyledButton(
+            text="Browse",
+            size_hint_x=0.20,
+            height=dp(34),
+            font_size=sp(10),
+            background_color=THEME["accent_dim"],
+        )
+        ds_browse_btn.bind(on_press=self._browse_dataset)
+        ds_row.add_widget(ds_browse_btn)
         self.add_widget(ds_row)
 
         # Header added LAST so it sits on top.
         self.add_widget(SectionHeader("MODEL TRAINING", "Hyperparameters & progress"))
 
-    def _path_row(self, label, text):
-        """A labelled input row with a fixed height."""
-        box = BoxLayout(spacing=dp(6), size_hint_y=None, height=dp(36))
-        lbl = StyledLabel(
-            text=label,
-            font_size=sp(10),
-            color=THEME["text_dim"],
-            size_hint_x=0.34,
-            halign="left",
+    def _field(self, label, widget, size_hint_x=1.0):
+        box = BoxLayout(
+            orientation="vertical",
+            spacing=dp(2),
+            size_hint_x=size_hint_x,
         )
-        box.add_widget(lbl)
-        inp = StyledTextInput(text=text, font_size=sp(11), size_hint_x=0.66)
-        box.add_widget(inp)
-        box.input = inp
-        return box
-
-    def _field(self, label, widget):
-        box = BoxLayout(orientation="vertical", spacing=dp(2))
-        box.add_widget(StyledLabel(
+        lbl = StyledLabel(
             text=label,
             font_size=sp(9),
             color=THEME["text_muted"],
             halign="center",
-            size_hint_y=0.4,
-        ))
+            valign="center",
+            size_hint_y=None,
+            height=dp(12),
+        )
+        lbl.bind(
+            size=lambda w, *a: setattr(w, "text_size", (w.width, w.height))
+        )
+        box.add_widget(lbl)
         box.add_widget(widget)
         return box
 
@@ -248,6 +261,9 @@ class TrainingPanel(PanelCard):
 
     def _browse_model(self, *args):
         self.app.open_model_chooser()
+
+    def _browse_dataset(self, *args):
+        self.app.open_dataset_chooser()
 
     def _start_training(self, *args):
         if self.is_training:

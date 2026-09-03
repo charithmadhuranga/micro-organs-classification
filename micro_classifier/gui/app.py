@@ -274,17 +274,19 @@ class MicroClassifyApp(App):
         self._open_chooser(self._on_file_chosen)
 
     def open_dataset_chooser(self):
-        self._open_chooser(self._on_dataset_chosen)
+        self._open_chooser(self._on_dataset_chosen, dirselect=True)
 
     def open_model_chooser(self):
         self._open_chooser(self._on_model_chosen, filters=["*.pth", "*.pt", "*.onnx"])
 
-    def _open_chooser(self, on_select, filters=None):
+    def _open_chooser(self, on_select, filters=None, dirselect=False):
         from kivy.uix.filechooser import FileChooserIconView
 
         chooser = FileChooserIconView(size_hint_y=0.9)
         if filters:
             chooser.filters = filters
+        if dirselect:
+            chooser.dirselect = True
         box = BoxLayout(orientation="vertical", padding=dp(8))
         box.add_widget(chooser)
         btn_row = BoxLayout(size_hint_y=None, height=dp(42), spacing=dp(8))
