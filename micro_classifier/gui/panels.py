@@ -492,8 +492,7 @@ class VideoDisplay(BoxLayout):
         self.add_widget(self._inner)
 
         self._preview = Image(
-            allow_stretch=True,
-            keep_ratio=True,
+            fit_mode="contain",
             size_hint=(None, None),
         )
         self._preview.texture = None

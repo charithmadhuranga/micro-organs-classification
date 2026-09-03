@@ -4,6 +4,11 @@ import os
 import sys
 import logging
 
+os.environ["KIVY_LOG_LEVEL"] = "warning"
+os.environ["KIVY_INPUT"] = "sdl2"
+os.environ["KIVY_CLIPBOARD"] = "sdl2"
+os.environ["KIVY_CUTBUFFER"] = "sdl2"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -13,6 +18,31 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
+
+_NOISY_PATTERNS = (
+    "MTDev is not supported",
+    "libmtdev.so",
+    "Unable to find any valuable Cutbuffer",
+    "xclip",
+    "xsel",
+    "clipboard_xclip",
+    "clipboard_xsel",
+    "clipboard_dbusklipper",
+    "clipboard_gtk3",
+    "Window.minimum_width",
+)
+
+
+class _KivyNoiseFilter(logging.Filter):
+    def filter(self, record):
+        msg = record.getMessage()
+        return not any(p in msg for p in _NOISY_PATTERNS)
+
+
+for _name in ("kivy", "kivy.input", "kivy.input.providers",
+              "kivy.core", "kivy.core.clipboard", "kivy.core.cutbuffer",
+              "kivy.core.window"):
+    logging.getLogger(_name).addFilter(_KivyNoiseFilter())
 
 
 def main():

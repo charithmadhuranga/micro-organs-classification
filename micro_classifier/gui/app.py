@@ -280,26 +280,22 @@ class MicroClassifyApp(App):
         self._open_chooser(self._on_model_chosen, filters=["*.pth", "*.pt", "*.onnx"])
 
     def _open_chooser(self, on_select, filters=None, dirselect=False):
-        from kivy.uix.filechooser import FileChooserIconView
+        from .filebrowser import FileBrowserDialog
 
-        chooser = FileChooserIconView(size_hint_y=0.9)
-        if filters:
-            chooser.filters = filters
-        if dirselect:
-            chooser.dirselect = True
-        box = BoxLayout(orientation="vertical", padding=dp(8))
-        box.add_widget(chooser)
-        btn_row = BoxLayout(size_hint_y=None, height=dp(42), spacing=dp(8))
-        ok = StyledButton(text="Select", background_color=THEME["accent"], size_hint_x=0.5)
-        cancel = StyledButton(text="Cancel", background_color=THEME["text_muted"], size_hint_x=0.5)
-        btn_row.add_widget(ok)
-        btn_row.add_widget(cancel)
-        box.add_widget(btn_row)
+        initial = self.default_dataset_path if dirselect else os.path.expanduser("~")
 
-        popup = Popup(title="Choose", content=box, size_hint=(0.6, 0.7))
-        ok.bind(on_press=lambda *a: (on_select(chooser.selection), popup.dismiss()))
-        cancel.bind(on_press=popup.dismiss)
-        popup.open()
+        def _callback(path):
+            if path:
+                on_select([path])
+
+        dialog = FileBrowserDialog(
+            title="Select File" if not dirselect else "Select Folder",
+            initial_path=initial,
+            filters=filters,
+            dirselect=dirselect,
+            on_select=_callback,
+        )
+        dialog.open()
 
     def _on_file_chosen(self, selection):
         if selection:

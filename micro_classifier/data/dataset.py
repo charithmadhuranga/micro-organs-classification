@@ -1,7 +1,7 @@
 """Dataset and data loading utilities for microorganism classification."""
 
 import os
-import random
+import logging
 from typing import Tuple, Optional, Dict, List
 
 import torch
@@ -9,6 +9,48 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from PIL import Image
+
+logger = logging.getLogger(__name__)
+
+_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.webp')
+
+
+def _is_valid_image(path: str) -> bool:
+    try:
+        with Image.open(path) as img:
+            img.load()
+        return True
+    except Exception:
+        return False
+
+
+class RobustImageFolder(ImageFolder):
+    """ImageFolder that silently skips corrupt or unreadable images."""
+
+    def __init__(self, root, transform=None, **kwargs):
+        self._original_root = root
+        self._valid_samples = None
+        super().__init__(root, transform=transform, **kwargs)
+        self._filter_samples()
+
+    def _filter_samples(self):
+        bad = []
+        for idx, (path, _) in enumerate(self.samples):
+            if not _is_valid_image(path):
+                bad.append(idx)
+        if bad:
+            logger.warning("Skipping %d corrupt images out of %d total",
+                           len(bad), len(self.samples))
+            self.samples = [s for i, s in enumerate(self.samples) if i not in set(bad)]
+            self.targets = [t for i, t in enumerate(self.targets) if i not in set(bad)]
+
+    def __getitem__(self, index):
+        try:
+            return super().__getitem__(index)
+        except Exception:
+            if index + 1 < len(self):
+                return super().__getitem__(index + 1)
+            return super().__getitem__(0)
 
 
 def get_training_transforms(cfg) -> transforms.Compose:
@@ -55,7 +97,7 @@ class MicroorganismDataset:
         self.augment_config = augment_config
         self.training_config = training_config
         self.class_to_idx: Dict[str, int] = {}
-        self.idx_to_class: Dict[int, str] = {}
+        self.idx_to_class: Dict[int, int] = {}
         self._class_names: List[str] = []
 
     def _discover_classes(self) -> List[str]:
@@ -87,7 +129,7 @@ class MicroorganismDataset:
         train_transforms = get_training_transforms(self.augment_config)
         val_transforms = get_validation_transforms(self.augment_config)
 
-        full_dataset = ImageFolder(root=self.dataset_path, transform=train_transforms)
+        full_dataset = RobustImageFolder(root=self.dataset_path, transform=train_transforms)
 
         total_size = len(full_dataset)
         val_size = int(total_size * self.training_config.validation_split)
@@ -98,7 +140,7 @@ class MicroorganismDataset:
             generator=torch.Generator().manual_seed(42),
         )
 
-        val_dataset.dataset = ImageFolder(
+        val_dataset.dataset = RobustImageFolder(
             root=self.dataset_path, transform=val_transforms
         )
 
@@ -126,7 +168,7 @@ class MicroorganismDataset:
             cls_path = os.path.join(self.dataset_path, cls_name)
             class_counts[cls_name] = len([
                 f for f in os.listdir(cls_path)
-                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff'))
+                if f.lower().endswith(_EXTENSIONS)
             ])
 
         stats = {

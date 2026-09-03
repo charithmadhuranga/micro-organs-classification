@@ -1,5 +1,6 @@
 """Video stream handler supporting multiple input sources."""
 
+import os
 import time
 import logging
 import threading
@@ -90,7 +91,14 @@ class VideoStream:
             self._cap = cv2.VideoCapture(self.source)
 
         if not self._cap.isOpened():
-            logger.error(f"Failed to open video source: {self.source}")
+            if self._source_type == "file" and not os.path.isfile(self.source):
+                logger.error(f"File not found: {self.source}")
+            elif self._source_type == "file":
+                logger.error(
+                    f"Cannot open video file (may be corrupted or not a valid video): {self.source}"
+                )
+            else:
+                logger.error(f"Failed to open video source: {self.source}")
             return False
 
         self._native_fps = self._cap.get(cv2.CAP_PROP_FPS) or None
