@@ -14,6 +14,7 @@ from kivy.graphics import Color, RoundedRectangle
 from kivy.graphics.texture import Texture
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.image import Image
 
@@ -460,10 +461,10 @@ class BarWidget(BoxLayout):
 
 
 class VideoDisplay(BoxLayout):
-    """Large video preview that letterboxes frames to preserve aspect ratio.
+    """Full-bleed video preview that stretches frames to fill the column.
 
-    Uses an internal (0,0)-anchored Image widget so frames scale but never
-    stretch beyond the preview area.
+    Uses a FloatLayout (not a BoxLayout) so the Image child's size/position
+    are controlled directly and never re-positioned by layout enforcement.
     """
 
     def __init__(self, **kwargs):
@@ -471,9 +472,16 @@ class VideoDisplay(BoxLayout):
         self.padding = dp(8)
         paint_card(self, radius=12, bg_color=THEME["bg_dark"], border_color=THEME["border"])
 
-        self._preview = Image(size_hint=(None, None), keep_ratio=True, allow_stretch=True)
+        self._inner = FloatLayout()
+        self.add_widget(self._inner)
+
+        self._preview = Image(
+            allow_stretch=True,
+            keep_ratio=True,
+            size_hint=(None, None),
+        )
         self._preview.texture = None
-        self.add_widget(self._preview)
+        self._inner.add_widget(self._preview)
 
         self.placeholder = StyledLabel(
             text="Video source appears here",
@@ -481,24 +489,25 @@ class VideoDisplay(BoxLayout):
             font_size=sp(13),
             halign="center",
         )
-        self.add_widget(self.placeholder)
+        self._inner.add_widget(self.placeholder)
 
         self._frame_size = (0, 0)
-        self.bind(pos=self._layout_preview, size=self._layout_preview)
+        self._inner.bind(pos=self._layout_preview, size=self._layout_preview)
 
     def _layout_preview(self, *args):
-        w = self.width - dp(16)
-        h = self.height - dp(16)
-        self._preview.size = (max(1, w), max(1, h))
-        self._preview.pos = (self.x + dp(8), self.y + dp(8))
-        if self._frame_size and self._frame_size[0]:
-            fw, fh = self._frame_size
+        w = self._inner.width
+        h = self._inner.height
+        fw, fh = self._frame_size
+        if fw and fh:
             scale = min(w / fw, h / fh)
-            self._preview.size = (max(1, int(fw * scale)), max(1, int(fh * scale)))
-            self._preview.pos = (
-                self.x + dp(8) + (w - self._preview.width) / 2,
-                self.y + dp(8) + (h - self._preview.height) / 2,
-            )
+            pw, ph = max(1, int(fw * scale)), max(1, int(fh * scale))
+        else:
+            pw, ph = max(1, w), max(1, h)
+        self._preview.size = (pw, ph)
+        self._preview.pos = (
+            self._inner.x + (w - pw) / 2,
+            self._inner.y + (h - ph) / 2,
+        )
 
     def update_frame(self, frame):
         if frame is None:
@@ -511,12 +520,12 @@ class VideoDisplay(BoxLayout):
         texture.blit_buffer(buf, colorfmt="bgr", bufferfmt="ubyte")
         texture.flip_vertical()
         self._preview.texture = texture
-        if self.placeholder in self.children:
-            self.remove_widget(self.placeholder)
+        if self.placeholder in self._inner.children:
+            self._inner.remove_widget(self.placeholder)
         self._layout_preview()
 
     def clear_display(self):
         self._preview.texture = None
         self._frame_size = (0, 0)
-        if self.placeholder not in self.children:
-            self.add_widget(self.placeholder)
+        if self.placeholder not in self._inner.children:
+            self._inner.add_widget(self.placeholder)
