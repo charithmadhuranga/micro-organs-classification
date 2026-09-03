@@ -112,7 +112,7 @@ class StyledTextInput(TextInput):
             text=text,
             background_normal="",
             background_active="",
-            foreground_color=THEME["text"],
+            foreground_color=THEME["white"],
             hint_text_color=THEME["text_muted"],
             cursor_color=THEME["accent"],
             font_size=font_size,
@@ -128,10 +128,10 @@ class StyledTextInput(TextInput):
         with self.canvas.before:
             Color(*THEME["bg_input"])
             RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(6)])
-            Color(*THEME["border"])
+            Color(*THEME["accent_dim"])
             Line(
                 rounded_rectangle=(self.x, self.y, self.width, self.height, dp(6)),
-                width=dp(1),
+                width=dp(1.2),
             )
 
 

@@ -14,9 +14,9 @@ THEME = {
     "success": get_color_from_hex("#2ecc71"),
     "warning": get_color_from_hex("#f39c12"),
     "danger": get_color_from_hex("#e74c3c"),
-    "text": get_color_from_hex("#ecf0f1"),
-    "text_dim": get_color_from_hex("#93a5b5"),
-    "text_muted": get_color_from_hex("#5f7285"),
+    "text": get_color_from_hex("#ffffff"),
+    "text_dim": get_color_from_hex("#c6d4e0"),
+    "text_muted": get_color_from_hex("#93a5b8"),
     "border": get_color_from_hex("#2e4057"),
     "white": get_color_from_hex("#ffffff"),
 }

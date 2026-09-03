@@ -131,6 +131,7 @@ class MicroClassifyApp(App):
             self.show_error(f"Failed to open: {source}")
             return
         self._is_streaming = True
+        self._stream_event = Clock.schedule_interval(self._update_stream, 1.0 / 30.0)
         source_type = self.video_stream.source_type.upper()
         self.status_bar.set_stream(
             f"{source_type} | {os.path.basename(source) or source}", THEME["success"]
@@ -139,6 +140,9 @@ class MicroClassifyApp(App):
 
     def stop_stream(self):
         self._is_streaming = False
+        if getattr(self, "_stream_event", None):
+            self._stream_event.cancel()
+            self._stream_event = None
         if self.video_stream:
             self.video_stream.stop()
             self.video_stream = None
@@ -228,7 +232,11 @@ class MicroClassifyApp(App):
         train_loader, val_loader, stats = ds.get_dataloaders()
 
         self.model_config.num_classes = stats["num_classes"]
-        model = create_model(self.model_config)
+        model = create_model(
+            num_classes=stats["num_classes"],
+            dropout_rate=self.model_config.dropout_rate,
+            pretrained=True,
+        )
         self.training_engine = TrainingEngine(model, self.training_config)
         class_to_idx = stats["class_to_idx"]
 
