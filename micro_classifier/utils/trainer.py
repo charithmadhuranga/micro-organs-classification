@@ -135,17 +135,19 @@ class TrainingEngine:
             logger.info(f"Progressive unfreeze at epoch {epoch+1}/{total_epochs}")
             self.model.unfreeze_backbone()
             self._unfrozen = True
-            self.optimizer = optim.AdamW(
-                [
-                    {"params": self.model.backbone.parameters(), "lr": self.optimizer.param_groups[0]["lr"] * 0.1},
-                    {"params": self.model.classifier.parameters(), "lr": self.optimizer.param_groups[0]["lr"]},
-                ],
-                weight_decay=self.config.weight_decay,
-            )
+            base_lr = self.config.learning_rate * 0.3
+            self.optimizer = optim.AdamW([
+                {"params": [p for p in self.model.backbone.parameters() if p.requires_grad],
+                 "lr": base_lr * 0.1},
+                {"params": self.model.classifier.parameters(),
+                 "lr": base_lr},
+            ], weight_decay=self.config.weight_decay)
+            remaining = total_epochs - epoch
             self.scheduler = CosineWarmupScheduler(
                 self.optimizer,
-                warmup_epochs=2,
-                total_epochs=total_epochs - epoch,
+                warmup_epochs=3,
+                total_epochs=remaining,
+                min_lr=base_lr * 0.01,
             )
 
     def train_epoch(self, train_loader: DataLoader) -> Tuple[float, float]:
@@ -315,6 +317,9 @@ class TrainingEngine:
                         f"Early stopping at epoch {epoch+1} "
                         f"(no improvement for {self.config.early_stopping_patience} epochs)"
                     )
+
+            if self.device.type == "cuda" and (epoch + 1) % 10 == 0:
+                torch.cuda.empty_cache()
 
             if progress_callback:
                 progress_callback(
